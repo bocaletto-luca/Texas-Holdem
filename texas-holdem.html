@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <title>Texas Hold’em – Poker per 2 Giocatori</title>
+  <style>
+    /* ============================ */
+    /* Impostazioni generali       */
+    /* ============================ */
+    body {
+      margin: 0;
+      padding: 0;
+      background: #222;
+      font-family: 'Courier New', Courier, monospace;
+      color: #eee;
+      user-select: none;
+      overflow-y: auto;
+    }
+    /* Contenitore principale */
+    #gameContainer {
+      width: 800px;
+      margin: 20px auto;
+      padding: 20px;
+      background: #333;
+      border-radius: 10px;
+      box-shadow: 0 0 20px #000;
+    }
+    h1 {
+      text-align: center;
+      color: #0f0;
+      text-shadow: 0 0 10px #0f0;
+    }
+    /* ============================ */
+    /* HUD e Messaggi              */
+    /* ============================ */
+    #hud {
+      font-size: 20px;
+      margin-bottom: 10px;
+      text-align: center;
+      color: #0f0;
+      text-shadow: 0 0 8px #0f0;
+    }
+    #messages {
+      text-align: center;
+      margin: 10px 0;
+      font-size: 18px;
+      color: #0f0;
+      text-shadow: 0 0 6px #0f0;
+    }
+    /* ============================ */
+    /* Layout delle sezioni        */
+    /* ============================ */
+    .section {
+      margin-bottom: 20px;
+      padding: 10px;
+      background: #444;
+      border-radius: 5px;
+    }
+    .section-title {
+      font-weight: bold;
+      margin-bottom: 5px;
+      text-align: center;
+      text-shadow: 0 0 6px #0f0;
+    }
+    .cardsContainer {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+    }
+    /* ============================ */
+    /* Stile delle carte           */
+    /* ============================ */
+    .card {
+      width: 80px;
+      height: 120px;
+      background: #fff;
+      border: 2px solid #999;
+      border-radius: 8px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      align-items: center;
+      padding: 6px;
+      cursor: pointer;
+      box-shadow: 0 0 5px rgba(0,0,0,0.5);
+      transition: transform 0.1s ease;
+    }
+    .card:hover {
+      transform: scale(1.05);
+    }
+    .card .value {
+      font-size: 24px;
+      font-weight: bold;
+      color: #222;
+    }
+    .card .suit {
+      font-size: 32px;
+    }
+    .card-back {
+      background: linear-gradient(45deg, #999, #666);
+      color: transparent;
+    }
+    /* ============================ */
+    /* Controlli di Betting e Avanzamento */
+    /* ============================ */
+    #betControls, #advanceControls {
+      text-align: center;
+      margin: 20px 0;
+    }
+    #betControls button, #advanceControls button {
+      background: #0f0;
+      color: #222;
+      border: none;
+      border-radius: 5px;
+      padding: 10px 20px;
+      font-size: 18px;
+      margin: 5px;
+      cursor: pointer;
+      box-shadow: 0 0 6px #0f0;
+      text-shadow: 0 0 3px #fff;
+    }
+    /* Pulsante extra (ad es., HELP) */
+    #extraControls {
+      text-align: center;
+      margin-top: 10px;
+    }
+    #extraControls button {
+      background: #0f0;
+      color: #222;
+      border: none;
+      border-radius: 5px;
+      padding: 8px 16px;
+      font-size: 16px;
+      cursor: pointer;
+      box-shadow: 0 0 6px #0f0;
+      text-shadow: 0 0 3px #fff;
+    }
+    /* ============================ */
+    /* Overlay: HELP, GAME OVER, START */
+    /* ============================ */
+    .overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.9);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 999;
+      text-align: center;
+      color: #0f0;
+      text-shadow: 0 0 8px #0f0;
+    }
+    .overlay.hidden { display: none; }
+    .overlay p {
+      font-size: 20px;
+      max-width: 600px;
+      margin: 10px;
+      line-height: 1.4;
+    }
+    .overlay button {
+      margin-top: 20px;
+      padding: 10px 20px;
+      font-size: 20px;
+      background: #0f0;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      box-shadow: 0 0 6px #0f0;
+    }
+  </style>
+</head>
+<body>
+  <!-- Area di gioco -->
+  <div id="gameContainer">
+    <h1>Texas Hold’em – Poker</h1>
+    <div id="hud">
+      Stato: Pre-flop<br>
+      Fiches: Tu 1000 € - Bot 1000 €<br>
+      Pot: 30 €
+    </div>
+    <div id="messages"></div>
+    
+    <div class="section">
+      <div class="section-title">Carte Comuni</div>
+      <div id="communityCards" class="cardsContainer"></div>
+    </div>
+    <div class="section">
+      <div class="section-title">Le Tue Carte (Hole Cards)</div>
+      <div id="playerCards" class="cardsContainer"></div>
+    </div>
+    <div class="section">
+      <div class="section-title">Carte del Bot (Hole Cards)</div>
+      <div id="botCards" class="cardsContainer"></div>
+    </div>
+    
+    <!-- Controlli di Betting (solo pre-flop) -->
+    <div id="betControls" class="hidden">
+      <button id="callBtn">Call/Check</button>
+      <button id="betBtn">Bet (+20)</button>
+      <button id="foldBtn">Fold</button>
+      <br>
+      <span id="betInstructions">Scegli la tua azione pre-flop</span>
+    </div>
+    
+    <!-- Controlli per avanzare le fasi -->
+    <div id="advanceControls" class="hidden"></div>
+    
+    <!-- Controlli extra -->
+    <div id="extraControls">
+      <button id="helpBtn">HELP</button>
+    </div>
+  </div>
+  
+  <!-- Overlay HELP -->
+  <div id="helpOverlay" class="overlay hidden">
+    <p>
+      <strong>Regole del Texas Hold’em (Semplificata)</strong><br>
+      • Ogni giocatore riceve 2 carte coperte (hole cards).<br>
+      • Vengono distribuite 5 carte comuni: il Flop (3 carte), il Turn (1 carta) ed il River (1 carta).<br>
+      • Nel pre-flop posti lo small blind (10 fiches) e il bot il big blind (20 fiches) → Pot iniziale: 30.<br>
+      • Durante il pre-flop scegli: "Call/Check" per aggiungere 10 (completando a 20), "Bet" per scommettere ulteriori 20 oppure "Fold" per abbandonare la mano (vincitore: il bot).<br>
+      • Dopo il pre-flop, premi "Avanza" per proseguire: al 1° click verrà rivelato il Flop, al 2° il Turn, al 3° il River e al 4° verrà eseguito lo Showdown.<br>
+      • Lo Showdown confronta la migliore mano a 5 carte (scelta fra 7: 2 hole + 5 comuni) secondo un ranking standard. Il vincitore incassa il pot.<br>
+      • Ogni mano aggiorna le fiche; se il mazzo non ha più carte sufficienti, viene mostrato il riepilogo finale (GAME OVER).
+    </p>
+    <button id="closeHelpBtn">CHIUDI HELP</button>
+  </div>
+  
+  <!-- Overlay GAME OVER -->
+  <div id="gameOverOverlay" class="overlay hidden">
+    <p id="gameOverMsg"></p>
+    <button id="restartBtn">NUOVA MANO</button>
+  </div>
+  
+  <!-- Overlay di Avvio -->
+  <div id="startOverlay" class="overlay">
+    <p>
+      <strong>Texas Hold’em – Poker per 2 Giocatori</strong><br>
+      Fiches iniziali: 1000 € ciascuno
+    </p>
+    <button id="startBtn">START</button>
+  </div>
+  
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // --------------------------
+      // Funzioni di rendering delle carte
+      // --------------------------
+      function renderCard(card) {
+        let div = document.createElement("div");
+        div.className = "card";
+        let parts = card.display.split(" ");
+        div.innerHTML = `<div class="value">${parts[0]}</div><div class="suit">${parts[1]}</div>`;
+        return div;
+      }
+      function renderCardBack() {
+        let div = document.createElement("div");
+        div.className = "card card-back";
+        div.textContent = "🂠";
+        return div;
+      }
+      
+      // --------------------------
+      // Variabili globali del gioco
+      // --------------------------
+      let _deck, _playerHole = [], _botHole = [], _community = [];
+      let _playerChips = 1000, _botChips = 1000, _pot = 30;
+      let _stage = "preflop"; // Possibili stadi: "preflop", "flop", "turn", "river", "showdown"
+      let _currentBet = 20;   // Il big blind
+      let _betPlaced = false;
+      let advanceCount = 0;
+      
+      const suits = ["♠", "♥", "♦", "♣"];
+      const ranks = ["2","3","4","5","6","7","8","9","10","J","Q","K","A"];
+      const rankValues = {"2":2, "3":3, "4":4, "5":5, "6":6, "7":7, "8":8, "9":9, "10":10, "J":11, "Q":12, "K":13, "A":14};
+      
+      // --------------------------
+      // Elementi DOM
+      // --------------------------
+      const hudEl = document.getElementById("hud");
+      const messagesEl = document.getElementById("messages");
+      const communityCardsEl = document.getElementById("communityCards");
+      const playerCardsEl = document.getElementById("playerCards");
+      const botCardsEl = document.getElementById("botCards");
+      
+      const betControlsEl = document.getElementById("betControls");
+      const advanceControlsEl = document.getElementById("advanceControls");
+      const callBtn = document.getElementById("callBtn");
+      const betBtn = document.getElementById("betBtn");
+      const foldBtn = document.getElementById("foldBtn");
+      
+      const helpBtn = document.getElementById("helpBtn");
+      const closeHelpBtn = document.getElementById("closeHelpBtn");
+      const gameOverOverlay = document.getElementById("gameOverOverlay");
+      const gameOverMsgEl = document.getElementById("gameOverMsg");
+      const restartBtn = document.getElementById("restartBtn");
+      const startOverlay = document.getElementById("startOverlay");
+      const startBtn = document.getElementById("startBtn");
+      
+      // --------------------------
+      // Funzioni per il mazzo
+      // --------------------------
+      function createDeck() {
+        let d = [];
+        for (let suit of suits) {
+          for (let rank of ranks) {
+            d.push({
+              rank: rank,
+              suit: suit,
+              value: rankValues[rank],
+              display: rank + " " + suit
+            });
+          }
+        }
+        return d;
+      }
+      
+      function shuffle(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [array[i], array[j]] = [array[j], array[i]];
+        }
+      }
+      
+      // --------------------------
+      // Funzione per generare combinazioni (per valutare le mani)
+      // --------------------------
+      function getCombinations(array, k) {
+        let results = [];
+        function helper(start, combo) {
+          if (combo.length === k) {
+            results.push([...combo]);
+            return;
+          }
+          for (let i = start; i < array.length; i++) {
+            combo.push(array[i]);
+            helper(i + 1, combo);
+            combo.pop();
+          }
+        }
+        helper(0, []);
+        return results;
+      }
+      
+      // --------------------------
+      // Valutazione delle mani (5 carte) – algoritmo semplificato
+      // --------------------------
+      function evaluateFiveCardHand(hand) {
+        let cards = hand.slice().sort((a, b) => b.value - a.value);
+        let values = cards.map(c => c.value);
+        let suitsArr = cards.map(c => c.suit);
+        let flush = suitsArr.every(s => s === suitsArr[0]);
+      
+        let isStraight = false;
+        let straightHigh = 0;
+        let uniqueValues = [...new Set(values)];
+        uniqueValues.sort((a, b) => b - a);
+        if (uniqueValues.length >= 5) {
+          for (let i = 0; i <= uniqueValues.length - 5; i++) {
+            let seq = uniqueValues.slice(i, i + 5);
+            if (seq[0] - seq[4] === 4) {
+              isStraight = true;
+              straightHigh = seq[0];
+              break;
+            }
+          }
+          if (!isStraight && uniqueValues.includes(14)) {
+            let mapped = uniqueValues.map(v => v === 14 ? 1 : v);
+            mapped.sort((a, b) => b - a);
+            for (let i = 0; i <= mapped.length - 5; i++) {
+              let seq = mapped.slice(i, i + 5);
+              if (seq[0] - seq[4] === 4) {
+                isStraight = true;
+                straightHigh = (seq[0] === 1 ? 5 : seq[0]);
+                break;
+              }
+            }
+          }
+        }
+      
+        let counter = {};
+        for (let c of cards) {
+          counter[c.value] = (counter[c.value] || 0) + 1;
+        }
+        let groups = Object.entries(counter).map(e => [parseInt(e[0]), e[1]]);
+        groups.sort((a, b) => {
+          if (b[1] === a[1]) return b[0] - a[0];
+          return b[1] - a[1];
+        });
+      
+        let handRank = 1;
+        let scoreArr = [];
+        if (flush && isStraight) {
+          handRank = 9;
+          scoreArr = [straightHigh];
+        } else if (groups[0][1] === 4) {
+          handRank = 8;
+          scoreArr = [groups[0][0]];
+          let kicker = values.filter(v => v !== groups[0][0])[0];
+          scoreArr.push(kicker);
+        } else if (groups[0][1] === 3 && groups[1] && groups[1][1] >= 2) {
+          handRank = 7;
+          scoreArr = [groups[0][0], groups[1][0]];
+        } else if (flush) {
+          handRank = 6;
+          scoreArr = values.slice(0, 5);
+        } else if (isStraight) {
+          handRank = 5;
+          scoreArr = [straightHigh];
+        } else if (groups[0][1] === 3) {
+          handRank = 4;
+          scoreArr = [groups[0][0]];
+          let remain = values.filter(v => v !== groups[0][0]).slice(0, 2);
+          scoreArr.push(...remain);
+        } else if (groups[0][1] === 2 && groups[1] && groups[1][1] === 2) {
+          handRank = 3;
+          scoreArr = [groups[0][0], groups[1][0]];
+          let kicker = values.filter(v => v !== groups[0][0] && v !== groups[1][0])[0];
+          scoreArr.push(kicker);
+        } else if (groups[0][1] === 2) {
+          handRank = 2;
+          scoreArr = [groups[0][0]];
+          let remain = values.filter(v => v !== groups[0][0]).slice(0, 3);
+          scoreArr.push(...remain);
+        } else {
+          handRank = 1;
+          scoreArr = values.slice(0, 5);
+        }
+        return [handRank, ...scoreArr];
+      }
+      
+      function compareHands(arr1, arr2) {
+        for (let i = 0; i < Math.max(arr1.length, arr2.length); i++) {
+          let a = arr1[i] || 0;
+          let b = arr2[i] || 0;
+          if (a > b) return 1;
+          if (a < b) return -1;
+        }
+        return 0;
+      }
+      
+      function evaluateHand(sevenCards) {
+        let combos = getCombinations(sevenCards, 5);
+        let best = null;
+        for (let hand of combos) {
+          let score = evaluateFiveCardHand(hand);
+          if (best === null || compareHands(score, best) > 0) best = score;
+        }
+        return best;
+      }
+      
+      // --------------------------
+      // Funzioni principali di gioco
+      // --------------------------
+      function initPoker() {
+        _deck = createDeck();
+        shuffle(_deck);
+        _playerHole = [_deck.pop(), _deck.pop()];
+        _botHole = [_deck.pop(), _deck.pop()];
+        _community = [];
+        _stage = "preflop";
+        _currentBet = 20;
+        _betPlaced = false;
+        _pot = 30; // tu: 10, bot: 20
+        advanceCount = 0;
+        updatePokerDisplay();
+        updatePokerHUD();
+        messagesEl.textContent = "Pre-flop: Scegli Call/Check, Bet (+20) o Fold";
+        betControlsEl.classList.remove("hidden");
+        advanceControlsEl.innerHTML = "";
+      }
+      
+      function updatePokerHUD() {
+        hudEl.innerHTML = `Stadio: ${_stage}<br>
+                           Fiches: Tu ${_playerChips} € - Bot ${_botChips} €<br>
+                           Pot: ${_pot} €`;
+      }
+      
+      function updatePokerDisplay(revealBot = false) {
+        playerCardsEl.innerHTML = "";
+        _playerHole.forEach(card => { playerCardsEl.appendChild(renderCard(card)); });
+        botCardsEl.innerHTML = "";
+        _botHole.forEach(card => {
+          if (revealBot) botCardsEl.appendChild(renderCard(card));
+          else botCardsEl.appendChild(renderCardBack());
+        });
+        communityCardsEl.innerHTML = "";
+        _community.forEach(card => { communityCardsEl.appendChild(renderCard(card)); });
+      }
+      
+      // Azioni di betting pre-flop
+      function playerCall() {
+        // Tu hai già postato 10; per raggiungere 20 devi aggiungere 10
+        let toCall = _currentBet - 10;
+        if (_playerChips < toCall) {
+          messagesEl.textContent = "Fiches insufficienti per chiamare!";
+          return;
+        }
+        _playerChips -= toCall;
+        _pot += toCall;
+        messagesEl.textContent = "Hai chiamato (Call/Check).";
+        _betPlaced = true;
+        botCall();
+        // Dopo il betting, crea il pulsante per avanzare
+        setTimeout(createAdvanceButton, 1000);
+        updatePokerHUD();
+      }
+      
+      function playerBet() {
+        let betAmount = (_currentBet + 20) - 10;
+        if (_playerChips < betAmount) {
+          messagesEl.textContent = "Fiches insufficienti per scommettere!";
+          return;
+        }
+        _playerChips -= betAmount;
+        _pot += betAmount;
+        _currentBet += 20;
+        messagesEl.textContent = "Hai scommesso (+20).";
+        _betPlaced = true;
+        botCall();
+        setTimeout(createAdvanceButton, 1000);
+        updatePokerHUD();
+      }
+      
+      function playerFold() {
+        messagesEl.textContent = "Hai foldato. Il bot vince il pot.";
+        _botChips += _pot;
+        _pot = 0;
+        endHandPoker();
+      }
+      
+      function botCall() {
+        let toCall = _currentBet - 20; // Bot ha già postato 20
+        if (_botChips >= toCall) {
+          _botChips -= toCall;
+          _pot += toCall;
+          messagesEl.innerHTML += "<br>Il bot ha chiamato.";
+        }
+        updatePokerHUD();
+      }
+      
+      // --------------------------
+      // Avanzamento manuale delle fasi
+      // --------------------------
+      // Dopo il betting pre-flop, l'utente clicca "Avanza" per passare alle fasi successive:
+      // 1° click: Mostra il Flop (3 carte), 2°: il Turn (1 carta), 3°: il River (1 carta), 4°: Showdown.
+      function advancePhase() {
+        advanceCount++;
+        if (advanceCount === 1) {
+          // Flop: rivelazione delle 3 carte comuni
+          _community = _community.concat([_deck.pop(), _deck.pop(), _deck.pop()]);
+          _stage = "flop";
+          updatePokerDisplay();
+          updatePokerHUD();
+          messagesEl.textContent = "Flop distribuito.";
+          createAdvanceButton();
+        } else if (advanceCount === 2) {
+          // Turn: una carta
+          _community.push(_deck.pop());
+          _stage = "turn";
+          updatePokerDisplay();
+          updatePokerHUD();
+          messagesEl.textContent = "Turn distribuito.";
+          createAdvanceButton();
+        } else if (advanceCount === 3) {
+          // River: una carta
+          _community.push(_deck.pop());
+          _stage = "river";
+          updatePokerDisplay();
+          updatePokerHUD();
+          messagesEl.textContent = "River distribuito.";
+          createAdvanceButton();
+        } else if (advanceCount === 4) {
+          // Showdown
+          advanceControlsEl.innerHTML = "";
+          showdown();
+        }
+      }
+      
+      function createAdvanceButton() {
+        advanceControlsEl.innerHTML = "";
+        let btn = document.createElement("button");
+        if (_stage === "preflop") btn.textContent = "Mostra Flop";
+        else if (_stage === "flop") btn.textContent = "Mostra Turn";
+        else if (_stage === "turn") btn.textContent = "Mostra River";
+        else if (_stage === "river") btn.textContent = "Showdown";
+        btn.addEventListener("click", advancePhase);
+        advanceControlsEl.appendChild(btn);
+        advanceControlsEl.classList.remove("hidden");
+      }
+      
+      // Showdown: confronta la migliore mano (considerando 7 carte: 2 hole + 5 comuni)
+      function showdown() {
+        if (_stage !== "river") return;
+        _stage = "showdown";
+        updatePokerDisplay(true);
+        updatePokerHUD();
+        hudEl.innerHTML += "<br>Showdown!";
+        let playerBest = evaluateHand(_playerHole.concat(_community));
+        let botBest = evaluateHand(_botHole.concat(_community));
+        let res = compareHands(playerBest, botBest);
+        let resultText = "";
+        if (res > 0) {
+          resultText = "Hai vinto la mano!";
+          _playerChips += _pot;
+        } else if (res < 0) {
+          resultText = "Il bot ha vinto la mano!";
+          _botChips += _pot;
+        } else {
+          resultText = "La mano è pari! Il pot viene diviso.";
+          let half = _pot / 2;
+          _playerChips += half;
+          _botChips += half;
+        }
+        messagesEl.innerHTML = resultText + "<br>" +
+          `La tua mano (punteggio): [${playerBest.join(", ")}]<br>` +
+          `Bot: [${botBest.join(", ")}]`;
+        _pot = 0;
+        updatePokerHUD();
+        setTimeout(endHandPoker, 2000);
+      }
+      
+      function endHandPoker() {
+        if (_deck.length < 5) {
+          let summary = `<strong>GAME OVER</strong><br>
+                         Fiches Finali: Tu ${_playerChips} € - Bot ${_botChips} €<br>`;
+          if (_playerChips > _botChips) summary += "Hai vinto il match!";
+          else if (_botChips > _playerChips) summary += "Il bot ha vinto il match!";
+          else summary += "La partita è pari!";
+          gameOverMsgEl.innerHTML = summary;
+          gameOverOverlay.classList.remove("hidden");
+        } else {
+          // Nuova mano: reset dello stage, distribuzione nuove hole cards, pot e reset del pulsante di avanzamento
+          _stage = "preflop";
+          _currentBet = 20;
+          _pot = 30;
+          advanceCount = 0;
+          _playerHole = [_deck.pop(), _deck.pop()];
+          _botHole = [_deck.pop(), _deck.pop()];
+          _community = [];
+          updatePokerDisplay();
+          updatePokerHUD();
+          messagesEl.textContent = "Pre-flop: Scegli Call/Check, Bet (+20) o Fold";
+          betControlsEl.classList.remove("hidden");
+          advanceControlsEl.innerHTML = "";
+        }
+      }
+      
+      // --------------------------
+      // Eventi dei pulsanti
+      // --------------------------
+      callBtn.addEventListener("click", function() { 
+        playerCall(); 
+        betControlsEl.classList.add("hidden"); 
+      });
+      betBtn.addEventListener("click", function() { 
+        playerBet(); 
+        betControlsEl.classList.add("hidden"); 
+      });
+      foldBtn.addEventListener("click", function() { 
+        playerFold(); 
+        betControlsEl.classList.add("hidden"); 
+      });
+      
+      helpBtn.addEventListener("click", function() { 
+        document.getElementById("helpOverlay").classList.remove("hidden"); 
+      });
+      closeHelpBtn.addEventListener("click", function() { 
+        document.getElementById("helpOverlay").classList.add("hidden"); 
+      });
+      restartBtn.addEventListener("click", function() { 
+        document.getElementById("gameOverOverlay").classList.add("hidden"); 
+        initPoker(); 
+      });
+      startBtn.addEventListener("click", function() { 
+        document.getElementById("startOverlay").classList.add("hidden"); 
+        initPoker(); 
+      });
+      
+      // --------------------------
+      // Inizializzazione dell'app (mostra overlay START)
+      // --------------------------
+      function initApp() {
+        _playerChips = 1000;
+        _botChips = 1000;
+        document.getElementById("startOverlay").classList.remove("hidden");
+        document.getElementById("helpOverlay").classList.add("hidden");
+        document.getElementById("gameOverOverlay").classList.add("hidden");
+        hudEl.innerHTML = "Stadio: In attesa";
+        messagesEl.textContent = "";
+      }
+      
+      initApp();
+    });
+  </script>
+</body>
+</html>
